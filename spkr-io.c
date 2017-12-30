@@ -20,13 +20,13 @@ void set_spkr_frequency(){
 //Nota: este puerto 0x61 es utilizado por otros manejadores por lo que hay que asegurarse
 /*una vez escrito los dos bits, que los demas quedan inalterados*/
 void spkr_on(){
-
+  printf("Encendido\n");
 
 }
 
 //Simplemente es escribir un 0 en cualquiera de los dos bits de menor peso
 void spkr_off(){
-
+  printf("Apagado\n");
 
 }
 
