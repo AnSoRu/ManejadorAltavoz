@@ -6,9 +6,9 @@
 
 spinlock_t bloqueo;
 
-/**************************************
-				FASE 1
-***************************************/
+/*******************************************************
+ FASE 1: FRECUENCIA SPEAKER, SPEAKER ON Y SPEAKER OFF
+*******************************************************/
 
 /*Funcion para configurar los temporizadores
 1)Seleccionar modo de operacion
