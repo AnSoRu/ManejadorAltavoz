@@ -67,6 +67,9 @@ class_create(THIS_MODULE,nombre_dispo);
 //Después de crear la clase, hay que dar de alta el dispositivo de esa clase. Para ello, se usa la función device_create:
 device_create(class_create, NULL, midispo, NULL,dispo)
 
+//Inicializar una cola de tipo kfifo donde se iran almacenando los sonidos
+
+
 }
 
 //Añada a la rutina de terminación del módulo la llamada a la función unregister_chrdev_region para realizar la liberación correspondiente.
@@ -96,7 +99,7 @@ FASE 3: FUNCION APERTURA
 //recibe dos parametros: 
 //Un puntero al inodo de fichero (struct inode *) y un puntero a la estructura file (struct file *) que representa un descriptor de un fichero abierto
 static int open(struct inode *inode, struct file *filp) {
-		printk(KERN_INFO "operatcion de apertura\n");
+		printk(KERN_INFO "operacion de apertura\n");
 		
 //i_cdev (struct cdev *i_cdev) y es un puntero a la estructura cdev que se usó al crear el dispositivo.
 //f_mode: almacena el modo de apertura del fichero. Para determinar el modo de apertura, se puede comparar ese campo con las constantes FMODE_READ y FMODE_WRITE.
@@ -106,7 +109,7 @@ static int open(struct inode *inode, struct file *filp) {
 	//Hay que asegurarse de que en cada momento sólo está abierto una vez en modo escritura el fichero. 
 	if (filp->f_mode & FMODE_WRITE){
 		count_write++;
-		printk(KERN_INFO "operatcion de apertura en modo escritura\n");
+		printk(KERN_INFO "operacion de apertura en modo escritura\n");
 
 		//Si se produce una solicitud de apertura en modo escritura estando ya abierto en ese mismo modo. Se retornará el error -EBUSY. 
 		(if count_write>1){
@@ -116,21 +119,42 @@ static int open(struct inode *inode, struct file *filp) {
 	else{ //filp->f_mode & FMODE_READ
 		//Sin embargo, no habrá ninguna limitación con las aperturas en modo lectura.
 		count_read++;
-		printk(KERN_INFO "operatcion de apertura en modo lectura\n");
+		printk(KERN_INFO "operacion de apertura en modo lectura\n");
 	}		
 }
 
 static int release(struct inode *inode, struct file *filp) {
-			printk(KERN_INFO "operatcion de cierre\n");
+			printk(KERN_INFO "operacion de cierre\n");
 
 }
 
+/*****************************************************
+FASE 4: OPERACION DE ESCRITURA
+*****************************************************/
+
+/*Se comporta como un productor de sonidos*/
+/*Utilizar la estructura kfifo*/
+/*Se trata de escribir en el buffer los sonidos en espera para que se vayan reproduciendo*/
 static ssize_t write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
-			printk(KERN_INFO "operatcion de escritura\n");
+			printk(KERN_INFO "Iniciado operacion de escritura\n");
+  //buf es un puntero de la zona de memoria del usuario
+  //no se puede acceder desde el kernel directamente a esta zona pues esta paginado y las direcciones no concuerdan
+  //copy_from_user -> para copiar datos desde el espacio de memoria del usuario
+  //put_user(datum,ptr) -> escribe 'datum' en el espacio de usuario
+ if(!kfifoDefined){
 
+ }else{
+
+ 
+ }
+/*Primero hay que comprobar si hay espacio suficiente para escribir */
+ /*Si hay espacio*/
+
+ //Si no hay espacio -> ¿se bloquea el proceso?
+
+
+ printk(KERN_INFO "Finalizada operacion de escritura\n");
 }
-
-
 
 
 
