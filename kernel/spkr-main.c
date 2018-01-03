@@ -89,8 +89,35 @@ class_destroy(class_create);
 
 //operaciones de apertura, cierre y escritura.
 
+
+/**************************************
+FASE 3: FUNCION APERTURA
+***************************************/
+//recibe dos parametros: 
+//Un puntero al inodo de fichero (struct inode *) y un puntero a la estructura file (struct file *) que representa un descriptor de un fichero abierto
 static int open(struct inode *inode, struct file *filp) {
 		printk(KERN_INFO "operatcion de apertura\n");
+		
+//i_cdev (struct cdev *i_cdev) y es un puntero a la estructura cdev que se usó al crear el dispositivo.
+//f_mode: almacena el modo de apertura del fichero. Para determinar el modo de apertura, se puede comparar ese campo con las constantes FMODE_READ y FMODE_WRITE.
+	int count_write=0
+	int count_read=0;
+	
+	//Hay que asegurarse de que en cada momento sólo está abierto una vez en modo escritura el fichero. 
+	if (filp->f_mode & FMODE_WRITE){
+		count_write++;
+		printk(KERN_INFO "operatcion de apertura en modo escritura\n");
+
+		//Si se produce una solicitud de apertura en modo escritura estando ya abierto en ese mismo modo. Se retornará el error -EBUSY. 
+		(if count_write>1){
+			return -EBUSY;
+		}
+	}
+	else{ //filp->f_mode & FMODE_READ
+		//Sin embargo, no habrá ninguna limitación con las aperturas en modo lectura.
+		count_read++;
+		printk(KERN_INFO "operatcion de apertura en modo lectura\n");
+	}		
 }
 
 static int release(struct inode *inode, struct file *filp) {
