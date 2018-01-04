@@ -2,9 +2,14 @@
 #include <linux/module.h>
 #include <linux/version.h>
 #include <linux/i8253.h>
-#include <sys/io.h>
+#include <linux/spinlock_types.h>
+//#include <sys/uio.h>
 
-spinlock_t bloqueo;
+raw_spinlock_t bloqueo;
+unsigned long flags;
+uint32_t DivisorFreq;
+uint8_t value;
+uint8_t value1;
 
 /*******************************************************
  FASE 1: FRECUENCIA SPEAKER, SPEAKER ON Y SPEAKER OFF
@@ -24,8 +29,8 @@ a continuación, la parte alta. Por tanto, es necesario crear una sección crít
 void set_spkr_frequency(unsigned int frequency) {
 	printk(KERN_INFO "spkr set frequency: %d\n", frequency);
 	//divisores de frecuencia de una entrada de reloj que oscila a 1,193182 MHZ
-	uint32_t DivisorFreq = PIT_TICK_RATE / frequency;
-	unsigned long flags;
+        DivisorFreq = (uint32_t)(PIT_TICK_RATE / frequency);
+	flags = 0;
 	raw_spin_lock_irqsave(&bloqueo,flags);
 
 	//Configurar uno de estos temporizadores, en primer lugar, es necesario seleccionar su modo de operación escribiendo en su registro de control (puerto 0x43)
@@ -50,7 +55,7 @@ void spkr_on(void) {
 	printk(KERN_INFO "spkr ON\n");
 	//en el registro 0x61 hay que escribir un 1 en el bit 1 y un 1 en el bit 0 del puerto 0x61
 	raw_spin_lock_irqsave(&bloqueo,flags);
-	uint8_t value = inb(0x61)
+        value = inb(0x61);
 	outb(value | 3, 0x61);
 	raw_spin_unlock_irqrestore(&bloqueo,flags);
 
@@ -59,8 +64,8 @@ void spkr_on(void) {
 //Simplemente es escribir un 0 en cualquiera de los dos bits de menor peso
 void spkr_off(void) {
 	printk(KERN_INFO "spkr OFF\n");
-	raw_spin_lock_irqsave
-	uint8_t value1 = inb(0x61) & 0xFC;
+	raw_spin_lock_irqsave(&bloqueo,flags);
+	value1 = inb(0x61) & 0xFC;
  	outb(value1,0x61);
 	raw_spin_unlock_irqrestore(&bloqueo,flags);
 }

@@ -1,0 +1,1 @@
+cmd_/home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr.o := ld -m elf_x86_64   -r -o /home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr.o /home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr-main.o /home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr-io.o 
