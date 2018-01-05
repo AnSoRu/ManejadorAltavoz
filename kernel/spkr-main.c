@@ -45,6 +45,8 @@ struct device *dispoDevice;
 unsigned int major;
 unsigned int minor=0;
 unsigned int count=1;
+unsigned int count_write=0;
+unsigned int count_read=0;
 
 //void cdev_init(struct cdev *dev, struct file_operations *fops);
 //int cdev_add(struct cdev *dev, dev_t num, unsigned int count);
@@ -92,7 +94,7 @@ unsigned int count=1;
 //}
 
 //Añada a la rutina de terminación del módulo la llamada a la función unregister_chrdev_region para realizar la liberación correspondiente.
-static int finish(void){
+static void __exit finish(void){
 	
 //liberación de los números major y minor asociados
  unregister_chrdev_region(midispo, count);
@@ -106,7 +108,7 @@ static int finish(void){
 //A la hora de descargar el módulo habrá que hacer la operación complementaria (class_destroy(struct class * clase)).
 class_destroy(clase);
 
-return 0;
+//return 0;
 
 }
 
@@ -124,8 +126,8 @@ static int open(struct inode *inode, struct file *filp) {
 		
 //i_cdev (struct cdev *i_cdev) y es un puntero a la estructura cdev que se usó al crear el dispositivo.
 //f_mode: almacena el modo de apertura del fichero. Para determinar el modo de apertura, se puede comparar ese campo con las constantes FMODE_READ y FMODE_WRITE.
-	int count_write=0;
-	int count_read=0;
+	count_write=0;
+	count_read=0;
 	
 	//Hay que asegurarse de que en cada momento sólo está abierto una vez en modo escritura el fichero. 
 	if (filp->f_mode & FMODE_WRITE){
@@ -188,7 +190,7 @@ static struct file_operations fops = {
      .write = write
 };
 
-static int init(void){
+static int __init init(void){
    //Reserva del major
    alloc_chrdev_region(&midispo,minor,count,nombre_dispo);
    major = MAJOR(midispo);
@@ -200,4 +202,4 @@ static int init(void){
 }
 
 module_init(init);
-
+module_exit(finish);

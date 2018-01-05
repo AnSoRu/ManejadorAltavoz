@@ -3,6 +3,7 @@ cmd_/home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr.mod.o := gcc -Wp,-MD
 source_/home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr.mod.o := /home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr.mod.c
 
 deps_/home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr.mod.o := \
+    $(wildcard include/config/module/unload.h) \
   include/linux/module.h \
     $(wildcard include/config/modules.h) \
     $(wildcard include/config/sysfs.h) \
@@ -17,7 +18,6 @@ deps_/home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr.mod.o := \
     $(wildcard include/config/tracing.h) \
     $(wildcard include/config/event/tracing.h) \
     $(wildcard include/config/ftrace/mcount/record.h) \
-    $(wildcard include/config/module/unload.h) \
     $(wildcard include/config/constructors.h) \
     $(wildcard include/config/debug/set/module/ronx.h) \
   include/linux/list.h \
