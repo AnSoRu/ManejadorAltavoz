@@ -10,7 +10,7 @@
 #include <linux/ioctl.h>
 #include <linux/kdev_t.h>
 #include <asm/uaccess.h>
-
+MODULE_LICENSE("GPL");
 
 
 /**************************************
