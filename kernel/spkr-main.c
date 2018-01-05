@@ -53,8 +53,8 @@ unsigned int count_read=0;
 //void cdev_del(struct cdev *dev);
 //struct class * class_create (struct module *owner, const char *name); 
 //struct device * device_create(struct class *class, struct device *parent, dev_t devt, void *drvdata, const char *fmt);
-//class_destroy(struct class * clase);
-//device_destroy(struct class * class, dev_t devt);
+//void class_destroy(struct class * clase);
+//void device_destroy(struct class * class, dev_t devt);
 
 /*static struct file_operations fops = {
         .owner =    THIS_MODULE,
@@ -95,7 +95,7 @@ unsigned int count_read=0;
 
 //Añada a la rutina de terminación del módulo la llamada a la función unregister_chrdev_region para realizar la liberación correspondiente.
 static void __exit finish(void){
-	
+	printk(KERN_INFO "Finalizando\n");
 //liberación de los números major y minor asociados
  unregister_chrdev_region(midispo, count);
 
@@ -192,6 +192,7 @@ static struct file_operations fops = {
 
 static int __init init(void){
    //Reserva del major
+   printk(KERN_INFO "Inicializando\n");
    alloc_chrdev_region(&midispo,minor,count,nombre_dispo);
    major = MAJOR(midispo);
    cdev_init(&dev,&fops);
