@@ -26,7 +26,7 @@ FASE 2:
 //cuyo major lo seleccionará el sistema, mientras que el minor corresponderá al valor recibido como parámetro. 
 
 #define DISPO "intspkr"
-#define nombre_dispo "intspkr"
+#define nombre_dispo "speaker"
 
 #ifndef FIFO_SIZE
 #define FIFO_SIZE = getpagesize(void);
