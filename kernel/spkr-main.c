@@ -25,8 +25,8 @@ FASE 2:
 //Se debe incluir dentro de la rutina de iniciación del módulo una llamada a alloc_chrdev_region para reservar un dispositivo llamado spkr, 
 //cuyo major lo seleccionará el sistema, mientras que el minor corresponderá al valor recibido como parámetro. 
 
-#define DISPO "intspkr"
-#define nombre_dispo "speaker"
+#define nombre_dispo "intspkr"
+#define clase_dispo "speaker"
 
 #ifndef FIFO_SIZE
 #define FIFO_SIZE = getpagesize(void);
@@ -80,7 +80,7 @@ unsigned int count=1;
 //class_create: Como primer parámetro se especificaría THIS_MODULE y en el segundo el nombre que se le quiere dar a esta clase de dispositivos (en este caso, speaker). 
 //Después de ejecutar esta llamada, aparecerá la entrada correspondiente en sysfs (/sys/class/speaker/).
 
-//class_create(THIS_MODULE,nombre_dispo);
+//class_create(THIS_MODULE,clase_dispo);
 
 //Después de crear la clase, hay que dar de alta el dispositivo de esa clase. Para ello, se usa la función device_create:
 
@@ -190,12 +190,12 @@ static struct file_operations fops = {
 
 static int init(void){
    //Reserva del major
-   alloc_chrdev_region(&midispo,minor,count,DISPO);
+   alloc_chrdev_region(&midispo,minor,count,nombre_dispo);
    major = MAJOR(midispo);
    cdev_init(&dev,&fops);
    cdev_add(&dev,midispo,count);
-   clase = class_create(THIS_MODULE,nombre_dispo);
-   device_create(clase,NULL,midispo,NULL,DISPO);
+   clase = class_create(THIS_MODULE,clase_dispo);
+   device_create(clase,NULL,midispo,NULL,nombre_dispo);
  return 0;
 }
 
