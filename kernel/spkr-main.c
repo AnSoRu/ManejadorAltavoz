@@ -25,8 +25,8 @@ FASE 2:
 //Se debe incluir dentro de la rutina de iniciación del módulo una llamada a alloc_chrdev_region para reservar un dispositivo llamado spkr, 
 //cuyo major lo seleccionará el sistema, mientras que el minor corresponderá al valor recibido como parámetro. 
 
-#define DISPO "spkr"
-#define nombre_dispo "speaker"
+#define DISPO "intspkr"
+#define nombre_dispo "intspkr"
 
 #ifndef FIFO_SIZE
 #define FIFO_SIZE = getpagesize(void);

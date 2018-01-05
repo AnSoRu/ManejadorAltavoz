@@ -1,0 +1,1 @@
+cmd_/home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr.ko /home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr.o /home/angel/Politecnica/Empotrados/Proyecto/kernel/spkr.mod.o ;  true
