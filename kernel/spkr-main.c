@@ -12,6 +12,9 @@
 #include <asm/uaccess.h>
 MODULE_LICENSE("GPL");
 
+extern void set_spkr_frequency(unsigned int frequency);
+extern void spkr_on(void);
+void spkr_off(void);
 
 /**************************************
 FASE 2:
@@ -107,8 +110,7 @@ static void __exit finish(void){
  
 //A la hora de descargar el módulo habrá que hacer la operación complementaria (class_destroy(struct class * clase)).
 class_destroy(clase);
-
-//return 0;
+spkr_off();
 
 }
 
@@ -191,9 +193,11 @@ static struct file_operations fops = {
 };
 
 static int __init init(void){
-   //Reserva del major
    printk(KERN_INFO "Inicializando\n");
+   set_spkr_frequency(50);
+   spkr_on();
    alloc_chrdev_region(&midispo,minor,count,nombre_dispo);
+   //Reserva del major
    major = MAJOR(midispo);
    cdev_init(&dev,&fops);
    cdev_add(&dev,midispo,count);
