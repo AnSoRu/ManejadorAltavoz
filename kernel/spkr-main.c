@@ -195,7 +195,7 @@ static struct file_operations fops = {
 static int __init init(void){
    printk(KERN_INFO "Inicializando\n");
    set_spkr_frequency(50);
-   spkr_on();
+   //spkr_on();
    alloc_chrdev_region(&midispo,minor,count,nombre_dispo);
    //Reserva del major
    major = MAJOR(midispo);
@@ -203,6 +203,8 @@ static int __init init(void){
    cdev_add(&dev,midispo,count);
    clase = class_create(THIS_MODULE,clase_dispo);
    device_create(clase,NULL,midispo,NULL,nombre_dispo);
+   printk(KERN_INFO "El major asignado es: %d\n", major);
+   printk(KERN_INFO "El minor asignado es: %d\n", minor);
  return 0;
 }
 
