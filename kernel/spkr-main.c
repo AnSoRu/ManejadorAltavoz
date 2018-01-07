@@ -40,6 +40,7 @@ dev_t midispo;
 struct cdev dev;
 struct class *clase;
 struct device *dispoDevice;
+struct mutex m_open;
 	
 //unsigned int major;
 //unsigned int minor;
@@ -50,6 +51,7 @@ unsigned int minor=0;
 unsigned int count=1;
 unsigned int count_write=0;
 unsigned int count_read=0;
+
 
 //void cdev_init(struct cdev *dev, struct file_operations *fops);
 //int cdev_add(struct cdev *dev, dev_t num, unsigned int count);
@@ -130,16 +132,21 @@ static int open(struct inode *inode, struct file *filp) {
 //f_mode: almacena el modo de apertura del fichero. Para determinar el modo de apertura, se puede comparar ese campo con las constantes FMODE_READ y FMODE_WRITE.
 	count_write=0;
 	count_read=0;
+        
 	
 	//Hay que asegurarse de que en cada momento sólo está abierto una vez en modo escritura el fichero. 
 	if (filp->f_mode & FMODE_WRITE){
+		mutex_lock_interruptible(&m_open);
 		count_write++;
 		printk(KERN_INFO "operacion de apertura en modo escritura\n");
+		printk(KERN_INFO "contador de escritura: %d\n",count_write );
+
 
 		//Si se produce una solicitud de apertura en modo escritura estando ya abierto en ese mismo modo. Se retornará el error -EBUSY. 
 		if (count_write>1){
 			return -EBUSY;
 		}
+		mutex_unlock(&m_open);
 	}
 	else{ //filp->f_mode & FMODE_READ
 		//Sin embargo, no habrá ninguna limitación con las aperturas en modo lectura.
@@ -205,6 +212,8 @@ static int __init init(void){
    device_create(clase,NULL,midispo,NULL,nombre_dispo);
    printk(KERN_INFO "El major asignado es: %d\n", major);
    printk(KERN_INFO "El minor asignado es: %d\n", minor);
+   //iniciamos mutex
+   mutex_init(&m_open);
  return 0;
 }
 
