@@ -10,11 +10,12 @@
 #include <linux/ioctl.h>
 #include <linux/kdev_t.h>
 #include <asm/uaccess.h>
+
 MODULE_LICENSE("GPL");
 
 extern void set_spkr_frequency(unsigned int frequency);
 extern void spkr_on(void);
-void spkr_off(void);
+extern void spkr_off(void);
 
 /**************************************
 FASE 2:
@@ -32,8 +33,8 @@ FASE 2:
 #define clase_dispo "speaker"
 
 #ifndef FIFO_SIZE
-#define FIFO_SIZE = getpagesize(void);
-#define kfifoDefined 0
+// int size = getconf(PAGE_SIZE);
+#define FIFO_SIZE 4096
 #endif
 
 dev_t midispo; 
@@ -41,6 +42,17 @@ struct cdev dev;
 struct class *clase;
 struct device *dispoDevice;
 struct mutex m_open;
+
+#if 0
+#define DYNAMIC
+#endif
+
+#ifdef DYNAMIC
+static DECLARE_KFIFO_PTR(cola,unsigned char);
+#else
+static DEFINE_KFIFO(cola,unsigned char,FIFO_SIZE);
+#endif
+
 	
 //unsigned int major;
 //unsigned int minor;
@@ -114,6 +126,9 @@ static void __exit finish(void){
 class_destroy(clase);
 spkr_off();
 
+//Eliminar la cola kfifo
+ kfifo_free(&cola);
+
 }
 
 
@@ -130,8 +145,9 @@ static int open(struct inode *inode, struct file *filp) {
 		
 //i_cdev (struct cdev *i_cdev) y es un puntero a la estructura cdev que se usó al crear el dispositivo.
 //f_mode: almacena el modo de apertura del fichero. Para determinar el modo de apertura, se puede comparar ese campo con las constantes FMODE_READ y FMODE_WRITE.
-	count_write=0;
-	count_read=0;
+	//Hay que definir estos dos contadores fuera de esta función pues si no cada vez que se llame a open se vuelven a inicializar y por tanto las comprobaciones posteriores no van a tener el efecto deseado.
+        //count_write=0;
+	//count_read=0;
         
 	
 	//Hay que asegurarse de que en cada momento sólo está abierto una vez en modo escritura el fichero. 
@@ -144,6 +160,7 @@ static int open(struct inode *inode, struct file *filp) {
 
 		//Si se produce una solicitud de apertura en modo escritura estando ya abierto en ese mismo modo. Se retornará el error -EBUSY. 
 		if (count_write>1){
+                        mutex_unlock(&m_open); //Antes de retornar de la funcion hay que liberar el mutex
 			return -EBUSY;
 		}
 		mutex_unlock(&m_open);
@@ -168,6 +185,7 @@ FASE 4: OPERACION DE ESCRITURA
 /*Se comporta como un productor de sonidos*/
 /*Utilizar la estructura kfifo*/
 /*Se trata de escribir en el buffer los sonidos en espera para que se vayan reproduciendo*/
+//ES UN PRODUCTOR DE SONIDOS
 static ssize_t write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
 			printk(KERN_INFO "Iniciado operacion de escritura\n");
   //buf es un puntero de la zona de memoria del usuario
@@ -176,12 +194,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
   //put_user(datum,ptr) -> escribe 'datum' en el espacio de usuario
  //el tamaño del buffer interno se recibe como parametro 'buffer_size'
  //si no se especifica sera igual al tamaño de una pagina PAGE_SIZE
- if(!kfifoDefined){
-
- }else{
-
  
- }
 /*Primero hay que comprobar si hay espacio suficiente para escribir */
  /*Si hay espacio*/
 
@@ -214,6 +227,8 @@ static int __init init(void){
    printk(KERN_INFO "El minor asignado es: %d\n", minor);
    //iniciamos mutex
    mutex_init(&m_open);
+   //Inicializar la cola kfifo
+   INIT_KFIFO(cola);
  return 0;
 }
 
