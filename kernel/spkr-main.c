@@ -32,6 +32,8 @@ FASE 2:
 #define nombre_dispo "intspkr"
 #define clase_dispo "speaker"
 
+
+
 #ifndef FIFO_SIZE
 // int size = getconf(PAGE_SIZE);
 #define FIFO_SIZE 4096
@@ -42,6 +44,7 @@ struct cdev dev;
 struct class *clase;
 struct device *dispoDevice;
 struct mutex m_open;
+wait_queue_head_t lista_bloq;
 
 #if 0
 #define DYNAMIC
@@ -63,7 +66,9 @@ unsigned int minor=0;
 unsigned int count=1;
 unsigned int count_write=0;
 unsigned int count_read=0;
-
+static int flag = 0;
+int ret;
+unsigned int copied;
 
 //void cdev_init(struct cdev *dev, struct file_operations *fops);
 //int cdev_add(struct cdev *dev, dev_t num, unsigned int count);
@@ -167,7 +172,9 @@ static int open(struct inode *inode, struct file *filp) {
 	}
 	else{ //filp->f_mode & FMODE_READ
 		//Sin embargo, no habrá ninguna limitación con las aperturas en modo lectura.
+                mutex_lock_interruptible(&m_open);
 		count_read++;
+                mutex_unlock(&m_open);
 		printk(KERN_INFO "operacion de apertura en modo lectura\n");
 	}
   return 0;		
@@ -184,25 +191,50 @@ FASE 4: OPERACION DE ESCRITURA
 
 /*Se comporta como un productor de sonidos*/
 /*Utilizar la estructura kfifo*/
-/*Se trata de escribir en el buffer los sonidos en espera para que se vayan reproduciendo*/
+/*Se trata de escribir en el buffer (en nuestro caso la cola) los sonidos en espera para que se vayan reproduciendo*/
 //ES UN PRODUCTOR DE SONIDOS
 static ssize_t write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
 			printk(KERN_INFO "Iniciado operacion de escritura\n");
-  //buf es un puntero de la zona de memoria del usuario
+ 
+ //Fijarse en el siguiente código 
+ //https://github.com/torvalds/linux/blob/master/samples/kfifo/inttype-example.c
+
+
+ //buf es un puntero de la zona de memoria del usuario
   //no se puede acceder desde el kernel directamente a esta zona pues esta paginado y las direcciones no concuerdan
   //copy_from_user -> para copiar datos desde el espacio de memoria del usuario
   //put_user(datum,ptr) -> escribe 'datum' en el espacio de usuario
  //el tamaño del buffer interno se recibe como parametro 'buffer_size'
  //si no se especifica sera igual al tamaño de una pagina PAGE_SIZE
- 
-/*Primero hay que comprobar si hay espacio suficiente para escribir */
- /*Si hay espacio*/
+ // int ret;
+ // unsigned int copied; 
+  if(mutex_lock_interruptible(&m_open))
+      return -1;
+  /*Primero hay que comprobar si hay espacio suficiente para escribir */
+   /*Si no hay espacio*/
+   if(kfifo_initialized(&cola)){
+     if(kfifo_is_empty(&cola)){
+          //no hay sonidos en la cola
+         ret = kfifo_from_user(&cola,buf,count,&copied);
+     }else{
+         //ver si esta llena o si queda espacio
+         while((kfifo_is_full(&cola)) || (kfifo_avail(&cola)<count)){
+                //Se bloquea
+                //Pero antes de bloquearme tengo que liberar el mutex
+                mutex_unlock(&m_open);
+                flag = 1;
+                wait_event_interruptible(lista_bloq,flag != 1); // => esto hay que usarlo en el read
+                //wake_up_interruptible(&lista_bloq);
+         }
+     }
+   }else{
+     //No está inicializada
+     printk(KERN_INFO "Error en write. La cola kfifo no esta inicializada\n");
+   }
+   mutex_unlock(&m_open);
 
- //Si no hay espacio -> ¿se bloquea el proceso?
-
-
- printk(KERN_INFO "Finalizada operacion de escritura\n");
- return count;
+   printk(KERN_INFO "Finalizada operacion de escritura\n");
+   return ret ? ret : copied;
 }
 
 static struct file_operations fops = {
@@ -229,6 +261,8 @@ static int __init init(void){
    mutex_init(&m_open);
    //Inicializar la cola kfifo
    INIT_KFIFO(cola);
+   //Inicializar la wait queue
+   init_waitqueue_head(&lista_bloq);
  return 0;
 }
 
