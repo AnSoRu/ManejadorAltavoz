@@ -21,18 +21,8 @@ extern void spkr_off(void);
 FASE 2:
 ***************************************/
 
-//Reserva y liberación del dispositivo
-//Un dispositivo en Linux queda identificado por una pareja de números: 
-//el major, que identifica al manejador, y el minor, que identifica al dispositivo concreto entre los que gestiona ese manejador.
-
-
-//Se debe incluir dentro de la rutina de iniciación del módulo una llamada a alloc_chrdev_region para reservar un dispositivo llamado spkr, 
-//cuyo major lo seleccionará el sistema, mientras que el minor corresponderá al valor recibido como parámetro. 
-
 #define nombre_dispo "intspkr"
 #define clase_dispo "speaker"
-
-
 
 #ifndef FIFO_SIZE
 // int size = getconf(PAGE_SIZE);
@@ -56,7 +46,6 @@ static DECLARE_KFIFO_PTR(cola,unsigned char);
 static DEFINE_KFIFO(cola,unsigned char,FIFO_SIZE);
 #endif
 
-
 unsigned int major;
 unsigned int minor=0;
 unsigned int count=1;
@@ -74,67 +63,23 @@ unsigned int copied;
 //void class_destroy(struct class * clase);
 //void device_destroy(struct class * class, dev_t devt);
 
-/*static struct file_operations fops = {
-        .owner =    THIS_MODULE,
-        .open =     open,
-        .release =  release,
-        .write =    write
-};*/
-
-//static int init(void){
-	//Reserva de mayor y minor
-
-//	int alloc_chrdev_region(&midispo, minor, count, dispo);
-
-	//Una vez reservado el número de dispositivo, hay que incluir en la función de carga del módulo la iniciación (cdev_init) y alta (cdev_add) del dispositivo.
-
-	//iniciar esa estructura de datos
-//	cdev_init(&dev,&fops);
-
-	//Después de iniciar la estructura que representa al dispositivo, hay que asociarla con los identificadores de dispositivo reservados previamente
-//	cdev_add(&dev,midispo,count);
-	
-	
-//Para dar de alta al dispositivo en sysfs, en la iniciación del módulo se usarán las funciones class_create y device_create. 
-
-//class_create: Como primer parámetro se especificaría THIS_MODULE y en el segundo el nombre que se le quiere dar a esta clase de dispositivos (en este caso, speaker). 
-//Después de ejecutar esta llamada, aparecerá la entrada correspondiente en sysfs (/sys/class/speaker/).
-
-//class_create(THIS_MODULE,clase_dispo);
-
-//Después de crear la clase, hay que dar de alta el dispositivo de esa clase. Para ello, se usa la función device_create:
-
-//device_create(class_create, NULL, midispo, NULL,dispo)
-
-//Inicializar una cola de tipo kfifo donde se iran almacenando los sonidos
-
-
-//}
 
 //Añada a la rutina de terminación del módulo la llamada a la función unregister_chrdev_region para realizar la liberación correspondiente.
 static void __exit finish(void){
 	printk(KERN_INFO "Finalizando\n");
-//liberación de los números major y minor asociados
- unregister_chrdev_region(midispo, count);
-
- //Asimismo, se debe añadir el código de eliminación del dispositivo (cdev_del) en la rutina de descarga del módulo. La operación de baja del dispositivo
- cdev_del(&dev);
- 
- //En la rutina de descarga del módulo habrá que invocar a device_destroy y a class_destroy para dar de baja el dispositivo y la clase en sysfs.
- device_destroy(clase,midispo);
- 
-//A la hora de descargar el módulo habrá que hacer la operación complementaria (class_destroy(struct class * clase)).
-class_destroy(clase);
-spkr_off();
-
-//Eliminar la cola kfifo
- kfifo_free(&cola);
-
+	
+    //liberación de los números major y minor asociados
+	unregister_chrdev_region(midispo, count);
+	//Asimismo, se debe añadir el código de eliminación del dispositivo (cdev_del) en la rutina de descarga del módulo. La operación de baja del dispositivo
+	cdev_del(&dev);
+	//En la rutina de descarga del módulo habrá que invocar a device_destroy y a class_destroy para dar de baja el dispositivo y la clase en sysfs.
+	device_destroy(clase,midispo);
+	//A la hora de descargar el módulo habrá que hacer la operación complementaria (class_destroy(struct class * clase)).
+	class_destroy(clase);
+	spkr_off();
+	//Eliminar la cola kfifo
+	kfifo_free(&cola);
 }
-
-
-//operaciones de apertura, cierre y escritura.
-
 
 /**************************************
 FASE 3: FUNCION APERTURA
@@ -235,16 +180,25 @@ static struct file_operations fops = {
      .write = write
 };
 
+
 static int __init init(void){
    printk(KERN_INFO "Inicializando\n");
    set_spkr_frequency(50);
    //spkr_on();
+   //Se debe incluir dentro de la rutina de iniciación del módulo una llamada a alloc_chrdev_region para reservar un dispositivo llamado spkr, 
+   //cuyo major lo seleccionará el sistema, mientras que el minor corresponderá al valor recibido como parámetro. 
    alloc_chrdev_region(&midispo,minor,count,nombre_dispo);
    //Reserva del major
+   //Un dispositivo en Linux queda identificado por una pareja de números: el major identifica al manejador, y el minor identifica al dispositivo concreto entre los que gestiona ese manejador.
    major = MAJOR(midispo);
+   	//iniciar esa estructura de datos
    cdev_init(&dev,&fops);
+   	//Después de iniciar la estructura que representa al dispositivo, hay que asociarla con los identificadores de dispositivo reservados previamente
    cdev_add(&dev,midispo,count);
+   //Para dar de alta al dispositivo en sysfs, en la iniciación del módulo se usarán las funciones class_create y device_create. 
+   //Después de ejecutar esta llamada, aparecerá la entrada correspondiente en sysfs (/sys/class/speaker/).
    clase = class_create(THIS_MODULE,clase_dispo);
+   //Después de crear la clase, hay que dar de alta el dispositivo de esa clase. Para ello, se usa la función device_create:
    device_create(clase,NULL,midispo,NULL,nombre_dispo);
    printk(KERN_INFO "El major asignado es: %d\n", major);
    printk(KERN_INFO "El minor asignado es: %d\n", minor);
