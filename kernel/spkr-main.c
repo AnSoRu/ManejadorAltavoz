@@ -56,10 +56,6 @@ static DECLARE_KFIFO_PTR(cola,unsigned char);
 static DEFINE_KFIFO(cola,unsigned char,FIFO_SIZE);
 #endif
 
-	
-//unsigned int major;
-//unsigned int minor;
-//unsigned int count;
 
 unsigned int major;
 unsigned int minor=0;
@@ -150,18 +146,13 @@ static int open(struct inode *inode, struct file *filp) {
 		
 //i_cdev (struct cdev *i_cdev) y es un puntero a la estructura cdev que se usó al crear el dispositivo.
 //f_mode: almacena el modo de apertura del fichero. Para determinar el modo de apertura, se puede comparar ese campo con las constantes FMODE_READ y FMODE_WRITE.
-	//Hay que definir estos dos contadores fuera de esta función pues si no cada vez que se llame a open se vuelven a inicializar y por tanto las comprobaciones posteriores no van a tener el efecto deseado.
-        //count_write=0;
-	//count_read=0;
-        
-	
+  
 	//Hay que asegurarse de que en cada momento sólo está abierto una vez en modo escritura el fichero. 
 	if (filp->f_mode & FMODE_WRITE){
 		mutex_lock_interruptible(&m_open);
 		count_write++;
 		printk(KERN_INFO "operacion de apertura en modo escritura\n");
 		printk(KERN_INFO "contador de escritura: %d\n",count_write );
-
 
 		//Si se produce una solicitud de apertura en modo escritura estando ya abierto en ese mismo modo. Se retornará el error -EBUSY. 
 		if (count_write>1){
