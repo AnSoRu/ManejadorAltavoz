@@ -70,7 +70,7 @@ unsigned int duracion;
 
 
 //unsigned int buffer_threshold = PAGE_SIZE;
-unsigned int umbral_limite = -1;
+unsigned int buffer_threshold = PAGE_SIZE;
 static int flag = 0;
 int ret;
 int ret_k_init;
@@ -95,6 +95,7 @@ void reproducir(unsigned long contador){
    
    //Nos aseguramos que hay al menos un sonido
    if(kfifo_len(&cola) >= 4){
+      printk(KERN_INFO "Hay mas de 4\n");
       kfifo_out(&cola,sound,4);
       frecuencia = ((int)sound[1] << 8) | sound[0];
       duracion = ((int)sound[3] << 8) | sound[2];
@@ -106,12 +107,12 @@ void reproducir(unsigned long contador){
       if(frecuencia!=0){
         set_spkr_frequency(frecuencia);
         if(!dispo_silencio){
-	  printk(KERN_INFO "Speaker ON\n");
+	  //printk(KERN_INFO "Speaker ON\n");
           spkr_on();
         }
       }else{
        //Caso en el que sea un silencio
-       printk(KERN_INFO "Speaker OFF\n");
+       //printk(KERN_INFO "Speaker OFF\n");
        spkr_off();
       }
       add_timer(&t_list);
@@ -120,7 +121,7 @@ void reproducir(unsigned long contador){
         wake_up_interruptible(&lista_bloq);
         printk(KERN_INFO "Desbloqueado proceso escritor\n");
       }else{
-        if(kfifo_avail(&cola) >= umbral_limite){
+        if(kfifo_avail(&cola) >= buffer_threshold){
            wake_up_interruptible(&lista_bloq);
            printk(KERN_INFO "Desbloqueado proceso escritor\n");
         }
@@ -128,7 +129,9 @@ void reproducir(unsigned long contador){
    }//En la cola no hay mas de 4 bytes
    else{
      printk(KERN_INFO "No hay un sonido completo\n");
+     spkr_off();
    }
+  printk(KERN_INFO "Saliendo de Reproducir\n");
 }
 
 
@@ -149,6 +152,7 @@ static void __exit finish(void){
 	spkr_off();
 	//Eliminar la cola kfifo
 	kfifo_free(&cola);
+        printk(KERN_INFO "Saliendo de finish\n");
 }
 
 /**************************************
@@ -183,6 +187,7 @@ static int open(struct inode *inode, struct file *filp) {
                 mutex_unlock(&m_open);
 		printk(KERN_INFO "operacion de apertura en modo lectura\n");
 	}
+  printk(KERN_INFO "Saliendo de open\n");
   return 0;		
 }
 
@@ -200,6 +205,7 @@ static int release(struct inode *inode, struct file *filp) {
             mutex_unlock(&m_open);
             printk(KERN_INFO "operacion de cierre en modo lectura\n");
        }
+  printk(KERN_INFO "Saliendo de Release\n");
   return 0;
 }
 
@@ -273,6 +279,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
 
    printk(KERN_INFO "Finalizada operacion de escritura\n");
    printk(KERN_INFO "Se han escrito %d bytes\n",copied);
+   printk(KERN_INFO "Saliendo de operacion write\n");
    return ret ? ret : copied;
 }
 
@@ -286,7 +293,7 @@ static struct file_operations fops = {
 
 static int __init init(void){
    printk(KERN_INFO "Inicializando\n");
-   set_spkr_frequency(50);
+   //set_spkr_frequency(50);
    //spkr_on();
    //Se debe incluir dentro de la rutina de iniciación del módulo una llamada a alloc_chrdev_region para reservar un dispositivo llamado spkr, 
    //cuyo major lo seleccionará el sistema, mientras que el minor corresponderá al valor recibido como parámetro. 
@@ -306,6 +313,7 @@ static int __init init(void){
    printk(KERN_INFO "El major asignado es: %d\n", major);
    printk(KERN_INFO "El minor asignado es: %d\n", minor);
    printk(KERN_INFO "El tamaño del buffer es: %d\n", buffer_size);
+   printk(KERN_INFO "El umbral limite es %d\n",buffer_threshold);
    //iniciamos mutex
    mutex_init(&m_open);
    //Inicializar la cola kfifo
@@ -322,12 +330,13 @@ static int __init init(void){
    //INIT_KFIFO(cola);
    //Inicializar la wait queue
    init_waitqueue_head(&lista_bloq);
+   printk(KERN_INFO "Saliendo de Init\n");
  return 0;
 }
 
 module_param(minor,int,S_IRUGO);
 module_param(buffer_size,int,S_IRUGO);
-module_param(umbral_limite,int,S_IRUGO);
+module_param(buffer_threshold,int,S_IRUGO);
 //module_param(buffer_threshold,int,S_IRUGO);
 module_init(init);
 module_exit(finish);
