@@ -9,6 +9,8 @@
 #include <linux/kfifo.h>
 #include <linux/ioctl.h>
 #include <linux/kdev_t.h>
+#include <linux/timer.h>
+#include <linux/jiffies.h>
 #include <asm/uaccess.h>
 
 MODULE_LICENSE("GPL");
@@ -36,6 +38,7 @@ struct mutex m_open;
 wait_queue_head_t lista_bloq;
 //static struct kfifo cola;
 static struct kfifo_rec_ptr_1 cola;
+struct timer_list t_list;
 
 #if 0
 #define DYNAMIC
@@ -54,16 +57,25 @@ unsigned int count_write=0;
 unsigned int count_read=0;
 unsigned int buffer_size = PAGE_SIZE;
 
+//Variables auxiliares para la funcion write
+unsigned int contador;
+unsigned int desplazamiento;
+unsigned int copied;
+
+unsigned char sound[4];
+unsigned int frecuencia;
+unsigned int duracion;
+
 //module_param(buffer_size,int,S_IRUGO);
 
 
-unsigned int buffer_threshold = PAGE_SIZE;
+//unsigned int buffer_threshold = PAGE_SIZE;
+unsigned int umbral_limite = -1;
 static int flag = 0;
 int ret;
-unsigned int copied;
 int ret_k_init;
 int dispo_activado = 0;
-
+int dispo_silencio = 0;
 //void cdev_init(struct cdev *dev, struct file_operations *fops);
 //int cdev_add(struct cdev *dev, dev_t num, unsigned int count);
 //void cdev_del(struct cdev *dev);
@@ -71,6 +83,55 @@ int dispo_activado = 0;
 //struct device * device_create(struct class *class, struct device *parent, dev_t devt, void *drvdata, const char *fmt);
 //void class_destroy(struct class * clase);
 //void device_destroy(struct class * class, dev_t devt);
+
+
+//Funcion auxiliar para reproducir el sonido
+void reproducir(unsigned long contador){
+   printk(KERN_INFO "Reproduciendo\n");
+  // unsigned char sound[4];
+  // unsigned int frecuencia;
+  // unsigned int duracion;
+   dispo_activado = 1;
+   
+   //Nos aseguramos que hay al menos un sonido
+   if(kfifo_len(&cola) >= 4){
+      kfifo_out(&cola,sound,4);
+      frecuencia = ((int)sound[1] << 8) | sound[0];
+      duracion = ((int)sound[3] << 8) | sound[2];
+
+      t_list.data = contador;
+      t_list.expires = jiffies + msecs_to_jiffies(duracion);
+      
+      //Caso en el que no sea un silencio
+      if(frecuencia!=0){
+        set_spkr_frequency(frecuencia);
+        if(!dispo_silencio){
+	  printk(KERN_INFO "Speaker ON\n");
+          spkr_on();
+        }
+      }else{
+       //Caso en el que sea un silencio
+       printk(KERN_INFO "Speaker OFF\n");
+       spkr_off();
+      }
+      add_timer(&t_list);
+
+      if((kfifo_avail(&cola)) >= contador){
+        wake_up_interruptible(&lista_bloq);
+        printk(KERN_INFO "Desbloqueado proceso escritor\n");
+      }else{
+        if(kfifo_avail(&cola) >= umbral_limite){
+           wake_up_interruptible(&lista_bloq);
+           printk(KERN_INFO "Desbloqueado proceso escritor\n");
+        }
+      }
+   }//En la cola no hay mas de 4 bytes
+   else{
+     printk(KERN_INFO "No hay un sonido completo\n");
+   }
+}
+
+
 
 
 //Añada a la rutina de terminación del módulo la llamada a la función unregister_chrdev_region para realizar la liberación correspondiente.
@@ -156,6 +217,8 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
  //Fijarse en el siguiente código 
  //https://github.com/torvalds/linux/blob/master/samples/kfifo/inttype-example.c
 
+ contador = count;
+ desplazamiento = 0;
 
  //buf es un puntero de la zona de memoria del usuario
   //no se puede acceder desde el kernel directamente a esta zona pues esta paginado y las direcciones no concuerdan
@@ -171,8 +234,25 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
    /*Si no hay espacio*/
    if(kfifo_initialized(&cola)){
      if(kfifo_is_empty(&cola)){
-          //no hay sonidos en la cola
-         ret = kfifo_from_user(&cola,buf,count,&copied);
+        while(contador > 0){
+           //no hay sonidos en la cola
+           //ret = kfifo_from_user(&cola,buf,count,&copied);
+           if(wait_event_interruptible(lista_bloq,!kfifo_is_full(&cola))!=0){
+            mutex_unlock(&m_open);
+            return -ERESTARTSYS;
+            }
+           if(kfifo_from_user(&cola,buf+desplazamiento,contador,&copied)!=0){
+            mutex_unlock(&m_open);
+            return -ERESTARTSYS;
+          }
+          desplazamiento = desplazamiento + copied;
+          contador = contador - copied;
+          printk(KERN_INFO "Copiados %d. Quedan por copiar %d\n",copied,contador);
+          //Comprobamos si estaba activado o no el altavoz
+          if(!dispo_activado){
+            reproducir(contador);
+          }
+        }//while
      }else{
          //ver si esta llena o si queda espacio
          while((kfifo_is_full(&cola)) || (kfifo_avail(&cola)<count)){
@@ -187,7 +267,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
      
    }else{
      //No está inicializada
-     printk(KERN_INFO "Error en write. La cola kfifo no esta inicializada\n");
+     printk(KERN_ERR "Error en write. La cola kfifo no esta inicializada\n");
    }
    mutex_unlock(&m_open);
 
@@ -236,6 +316,9 @@ static int __init init(void){
    }else{
      printk(KERN_INFO "Cola interna inicializada\n");
    }
+
+   init_timer(&t_list);
+   t_list.function = reproducir;
    //INIT_KFIFO(cola);
    //Inicializar la wait queue
    init_waitqueue_head(&lista_bloq);
@@ -244,6 +327,7 @@ static int __init init(void){
 
 module_param(minor,int,S_IRUGO);
 module_param(buffer_size,int,S_IRUGO);
-module_param(buffer_threshold,int,S_IRUGO);
+module_param(umbral_limite,int,S_IRUGO);
+//module_param(buffer_threshold,int,S_IRUGO);
 module_init(init);
 module_exit(finish);
