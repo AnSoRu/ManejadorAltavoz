@@ -25,7 +25,6 @@ FASE 2:
 #define clase_dispo "speaker"
 
 #ifndef FIFO_SIZE
-// int size = getconf(PAGE_SIZE);
 #define FIFO_SIZE 4096
 #endif
 
@@ -35,25 +34,35 @@ struct class *clase;
 struct device *dispoDevice;
 struct mutex m_open;
 wait_queue_head_t lista_bloq;
+//static struct kfifo cola;
+static struct kfifo_rec_ptr_1 cola;
 
 #if 0
 #define DYNAMIC
 #endif
 
-#ifdef DYNAMIC
-static DECLARE_KFIFO_PTR(cola,unsigned char);
-#else
-static DEFINE_KFIFO(cola,unsigned char,FIFO_SIZE);
-#endif
+//#ifdef DYNAMIC
+//static DECLARE_KFIFO_PTR(cola,unsigned char);
+//#else
+//static DEFINE_KFIFO(cola,unsigned char,FIFO_SIZE);
+//#endif
 
 unsigned int major;
 unsigned int minor=0;
 unsigned int count=1;
 unsigned int count_write=0;
 unsigned int count_read=0;
+unsigned int buffer_size = PAGE_SIZE;
+
+//module_param(buffer_size,int,S_IRUGO);
+
+
+unsigned int buffer_threshold = PAGE_SIZE;
 static int flag = 0;
 int ret;
 unsigned int copied;
+int ret_k_init;
+int dispo_activado = 0;
 
 //void cdev_init(struct cdev *dev, struct file_operations *fops);
 //int cdev_add(struct cdev *dev, dev_t num, unsigned int count);
@@ -116,8 +125,20 @@ static int open(struct inode *inode, struct file *filp) {
   return 0;		
 }
 
-static int release(struct inode *inode, struct file *filp) {
-			printk(KERN_INFO "operacion de cierre\n");
+static int release(struct inode *inode, struct file *filp) {			
+       printk(KERN_INFO "operacion de cierre\n");
+       if(filp->f_mode & FMODE_WRITE){
+             mutex_lock_interruptible(&m_open);
+             count_write--;
+             printk(KERN_INFO "operacion de cierre en modo escritura\n");
+             printk(KERN_INFO "contador de escritura: %d\n",count_write);
+       mutex_unlock(&m_open);
+       }else{
+            mutex_lock_interruptible(&m_open);
+            count_read--;
+            mutex_unlock(&m_open);
+            printk(KERN_INFO "operacion de cierre en modo lectura\n");
+       }
   return 0;
 }
 
@@ -130,7 +151,7 @@ FASE 4: OPERACION DE ESCRITURA
 /*Se trata de escribir en el buffer (en nuestro caso la cola) los sonidos en espera para que se vayan reproduciendo*/
 //ES UN PRODUCTOR DE SONIDOS
 static ssize_t write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos) {
-			printk(KERN_INFO "Iniciado operacion de escritura\n");
+ printk(KERN_INFO "Iniciado operacion de escritura\n");
  
  //Fijarse en el siguiente código 
  //https://github.com/torvalds/linux/blob/master/samples/kfifo/inttype-example.c
@@ -163,6 +184,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
                 //wake_up_interruptible(&lista_bloq);
          }
      }
+     
    }else{
      //No está inicializada
      printk(KERN_INFO "Error en write. La cola kfifo no esta inicializada\n");
@@ -170,6 +192,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
    mutex_unlock(&m_open);
 
    printk(KERN_INFO "Finalizada operacion de escritura\n");
+   printk(KERN_INFO "Se han escrito %d bytes\n",copied);
    return ret ? ret : copied;
 }
 
@@ -187,11 +210,11 @@ static int __init init(void){
    //spkr_on();
    //Se debe incluir dentro de la rutina de iniciación del módulo una llamada a alloc_chrdev_region para reservar un dispositivo llamado spkr, 
    //cuyo major lo seleccionará el sistema, mientras que el minor corresponderá al valor recibido como parámetro. 
-   alloc_chrdev_region(&midispo,minor,count,nombre_dispo);
+   alloc_chrdev_region(&midispo,minor,count,"spkr");
    //Reserva del major
    //Un dispositivo en Linux queda identificado por una pareja de números: el major identifica al manejador, y el minor identifica al dispositivo concreto entre los que gestiona ese manejador.
    major = MAJOR(midispo);
-   	//iniciar esa estructura de datos
+   	//iniciar esa estructura de dato
    cdev_init(&dev,&fops);
    	//Después de iniciar la estructura que representa al dispositivo, hay que asociarla con los identificadores de dispositivo reservados previamente
    cdev_add(&dev,midispo,count);
@@ -202,14 +225,25 @@ static int __init init(void){
    device_create(clase,NULL,midispo,NULL,nombre_dispo);
    printk(KERN_INFO "El major asignado es: %d\n", major);
    printk(KERN_INFO "El minor asignado es: %d\n", minor);
+   printk(KERN_INFO "El tamaño del buffer es: %d\n", buffer_size);
    //iniciamos mutex
    mutex_init(&m_open);
    //Inicializar la cola kfifo
-   INIT_KFIFO(cola);
+   ret_k_init = kfifo_alloc(&cola,buffer_size,GFP_KERNEL);
+   if(ret_k_init){
+     printk(KERN_ERR "Error en init al hacer kfifo_alloc\n");
+     return ret;
+   }else{
+     printk(KERN_INFO "Cola interna inicializada\n");
+   }
+   //INIT_KFIFO(cola);
    //Inicializar la wait queue
    init_waitqueue_head(&lista_bloq);
  return 0;
 }
 
+module_param(minor,int,S_IRUGO);
+module_param(buffer_size,int,S_IRUGO);
+module_param(buffer_threshold,int,S_IRUGO);
 module_init(init);
 module_exit(finish);
