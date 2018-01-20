@@ -35,6 +35,7 @@ struct cdev dev;
 struct class *clase;
 struct device *dispoDevice;
 struct mutex m_open;
+struct mutex dis_variable;
 wait_queue_head_t lista_bloq;
 //static struct kfifo cola;
 static struct kfifo_rec_ptr_1 cola;
@@ -113,6 +114,7 @@ void reproducir(unsigned long contador){
       }else{
        //Caso en el que sea un silencio
        //printk(KERN_INFO "Speaker OFF\n");
+       dispo_activado = 0;
        spkr_off();
       }
       add_timer(&t_list);
@@ -129,6 +131,7 @@ void reproducir(unsigned long contador){
    }//En la cola no hay mas de 4 bytes
    else{
      printk(KERN_INFO "No hay un sonido completo\n");
+     dispo_activado = 0;
      spkr_off();
    }
   printk(KERN_INFO "Saliendo de Reproducir\n");
@@ -244,6 +247,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
            //no hay sonidos en la cola
            //ret = kfifo_from_user(&cola,buf,count,&copied);
            if(wait_event_interruptible(lista_bloq,!kfifo_is_full(&cola))!=0){
+            printk(KERN_INFO "No hay sonidos en la cola\n");
             mutex_unlock(&m_open);
             return -ERESTARTSYS;
             }
@@ -316,6 +320,7 @@ static int __init init(void){
    printk(KERN_INFO "El umbral limite es %d\n",buffer_threshold);
    //iniciamos mutex
    mutex_init(&m_open);
+   mutex_init(&dis_variable);
    //Inicializar la cola kfifo
    ret_k_init = kfifo_alloc(&cola,buffer_size,GFP_KERNEL);
    if(ret_k_init){
