@@ -11,6 +11,8 @@ uint32_t DivisorFreq;
 uint8_t value;
 uint8_t value1;
 
+extern raw_spinlock_t i8253_lock;
+
 /*******************************************************
  FASE 1: FRECUENCIA SPEAKER, SPEAKER ON Y SPEAKER OFF
 *******************************************************/
