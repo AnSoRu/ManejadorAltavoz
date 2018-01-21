@@ -60,10 +60,10 @@ unsigned int buffer_size = PAGE_SIZE;
 
 //Variables auxiliares para la funcion write
 unsigned int contador;
-unsigned int desplazamiento;
+unsigned int desplazamiento = 0;
 unsigned int copied;
 
-unsigned char sound[4];
+//unsigned char sound[4];
 unsigned int frecuencia;
 unsigned int duracion;
 
@@ -89,7 +89,7 @@ int dispo_silencio = 0;
 //Funcion auxiliar para reproducir el sonido
 void reproducir(unsigned long contador){
    printk(KERN_INFO "Reproduciendo\n");
-  // unsigned char sound[4];
+   char sound[8];
   // unsigned int frecuencia;
   // unsigned int duracion;
    dispo_activado = 1;
@@ -98,9 +98,16 @@ void reproducir(unsigned long contador){
    if(kfifo_len(&cola) >= 4){
       printk(KERN_INFO "Hay mas de 4\n");
       kfifo_out(&cola,sound,4);
+      printk("El sonido recibido es %c %c %c %c %c %c %c %c",sound[0],sound[1],sound[2],sound[3],sound[4],sound[5],sound[6],sound[7]);
+      printk("El sonido recibido es %c-%c-%c-%c",sound[0],sound[1],sound[2],sound[3]);
+      
       frecuencia = ((int)sound[1] << 8) | sound[0];
       duracion = ((int)sound[3] << 8) | sound[2];
+      
+      printk(KERN_INFO "Frecuencia %d\n",frecuencia);
+      printk(KERN_INFO "Duracion %d\n",duracion);
 
+      
       t_list.data = contador;
       t_list.expires = jiffies + msecs_to_jiffies(duracion);
       
@@ -114,6 +121,7 @@ void reproducir(unsigned long contador){
       }else{
        //Caso en el que sea un silencio
        //printk(KERN_INFO "Speaker OFF\n");
+       printk(KERN_INFO "La frecuencia es 0\n");
        dispo_activado = 0;
        spkr_off();
       }
@@ -227,7 +235,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
  //https://github.com/torvalds/linux/blob/master/samples/kfifo/inttype-example.c
 
  contador = count;
- desplazamiento = 0;
+ //desplazamiento = 0;
 
  //buf es un puntero de la zona de memoria del usuario
   //no se puede acceder desde el kernel directamente a esta zona pues esta paginado y las direcciones no concuerdan
@@ -242,7 +250,9 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
   /*Primero hay que comprobar si hay espacio suficiente para escribir */
    /*Si no hay espacio*/
    if(kfifo_initialized(&cola)){
+       printk(KERN_INFO "La cola esta inicializada\n");
      if(kfifo_is_empty(&cola)){
+        printk(KERN_INFO "La cola esta vacia\n");
         while(contador > 0){
            //no hay sonidos en la cola
            //ret = kfifo_from_user(&cola,buf,count,&copied);
@@ -255,26 +265,50 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
             mutex_unlock(&m_open);
             return -ERESTARTSYS;
           }
+          printk(KERN_INFO "El contenido de la cola es\n");
+          char *elementos_cola;
+          kfifo_peek(&cola,elementos_cola);
           desplazamiento = desplazamiento + copied;
           contador = contador - copied;
           printk(KERN_INFO "Copiados %d. Quedan por copiar %d\n",copied,contador);
-          //Comprobamos si estaba activado o no el altavoz
-          if(!dispo_activado){
-            reproducir(contador);
+          //Comprobar si hay un sonido completo
+          if(kfifo_len(&cola)>=4){
+              printk(KERN_INFO "Hay mas de 4 en la cola\n");
+              //Comprobamos si estaba activado o no el altavoz
+            if(!dispo_activado){
+               reproducir(contador);
+            }
           }
         }//while
      }else{
+         printk(KERN_INFO "La cola no esta vacia\n");
          //ver si esta llena o si queda espacio
          while((kfifo_is_full(&cola)) || (kfifo_avail(&cola)<count)){
                 //Se bloquea
                 //Pero antes de bloquearme tengo que liberar el mutex
+                printk(KERN_INFO "La cola esta llena o no hay espacio para %d bytes\n",contador);
                 mutex_unlock(&m_open);
                 flag = 1;
                 wait_event_interruptible(lista_bloq,flag != 1); // => esto hay que usarlo en el read
                 //wake_up_interruptible(&lista_bloq);
          }
-     }
-     
+         printk(KERN_INFO "Aqui puedo insertar\n");
+         while(contador > 0){
+             if(kfifo_from_user(&cola,buf+desplazamiento,contador,&copied)!=0){
+               mutex_unlock(&m_open);
+               return -ERESTARTSYS;
+            }
+           desplazamiento = desplazamiento + copied;
+           contador = contador - copied;
+           printk(KERN_INFO "Copiados %d. Quedan por copiar %d\n",copied,contador);
+           if(kfifo_len(&cola)>=4){
+             printk("Hay mas de 4 en la cola\n");
+             if(!dispo_activado){
+                reproducir(contador);
+             }
+           }//if
+         }//while
+       }//else
    }else{
      //No está inicializada
      printk(KERN_ERR "Error en write. La cola kfifo no esta inicializada\n");
