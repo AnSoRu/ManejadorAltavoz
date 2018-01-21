@@ -312,8 +312,8 @@ static struct file_operations fops = {
 
 static int __init init(void){
    printk(KERN_INFO "Inicializando\n");
-   //set_spkr_frequency(50);
-   //spkr_on();
+   set_spkr_frequency(50);
+   spkr_on();
    //Se debe incluir dentro de la rutina de iniciación del módulo una llamada a alloc_chrdev_region para reservar un dispositivo llamado spkr, 
    //cuyo major lo seleccionará el sistema, mientras que el minor corresponderá al valor recibido como parámetro. 
    alloc_chrdev_region(&midispo,minor,count,"spkr");
