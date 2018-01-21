@@ -60,7 +60,7 @@ unsigned int count_read=0;
 unsigned int buffer_size = PAGE_SIZE;
 
 //Variables auxiliares para la funcion write
-unsigned int contador;
+unsigned int contador = 0;
 unsigned int desplazamiento = 0;
 unsigned int copied;
 
@@ -78,8 +78,8 @@ static char message[256]={0};
 static short size_of_message;
 int ret;
 int ret_k_init;
-int dispo_activado = 0;
-int dispo_silencio = 0;
+int altavoz_encendido = 0;
+int silenciar_spkr = 0;
 //void cdev_init(struct cdev *dev, struct file_operations *fops);
 //int cdev_add(struct cdev *dev, dev_t num, unsigned int count);
 //void cdev_del(struct cdev *dev);
@@ -88,20 +88,17 @@ int dispo_silencio = 0;
 //void class_destroy(struct class * clase);
 //void device_destroy(struct class * class, dev_t devt);
 
+void reproducir(unsigned long data);
 
 //Funcion auxiliar para reproducir el sonido
-void reproducir(unsigned long contador){
+void reproducir(unsigned long data){
    printk(KERN_INFO "Reproduciendo\n");
-   char sound[8];
-  // unsigned int frecuencia;
-  // unsigned int duracion;
-   dispo_activado = 1;
-   
+   char sound[4];   
    //Nos aseguramos que hay al menos un sonido
-   if(kfifo_len(&cola) >= 4){
+   while(kfifo_len(&cola) >= 4){
       printk(KERN_INFO "Hay mas de 4\n");
       kfifo_out(&cola,sound,4);
-      printk("El sonido recibido es %c %c %c %c %c %c %c %c",sound[0],sound[1],sound[2],sound[3],sound[4],sound[5],sound[6],sound[7]);
+      printk("El sonido recibido es %c %c %c %c",sound[0],sound[1],sound[2],sound[3]);     
       printk("El sonido recibido es %c-%c-%c-%c",sound[0],sound[1],sound[2],sound[3]);
       
       frecuencia = ((int)sound[1] << 8) | sound[0];
@@ -110,42 +107,36 @@ void reproducir(unsigned long contador){
       printk(KERN_INFO "Frecuencia %d\n",frecuencia);
       printk(KERN_INFO "Duracion %d\n",duracion);
 
-      
-      t_list.data = contador;
+      //t_list.data = contador;
       t_list.expires = jiffies + msecs_to_jiffies(duracion);
-      
       //Caso en el que no sea un silencio
       if(frecuencia!=0){
         set_spkr_frequency(frecuencia);
-        if(!dispo_silencio){
+        if(!silenciar_spkr){
 	  //printk(KERN_INFO "Speaker ON\n");
           spkr_on();
+          add_timer(&t_list);
         }
       }else{
        //Caso en el que sea un silencio
        //printk(KERN_INFO "Speaker OFF\n");
        printk(KERN_INFO "La frecuencia es 0\n");
-       dispo_activado = 0;
+       silenciar_spkr = 1;
        spkr_off();
+       add_timer(&t_list);
       }
-      add_timer(&t_list);
-
-      if((kfifo_avail(&cola)) >= contador){
+      if((kfifo_avail(&cola)) >= buffer_threshold){
         wake_up_interruptible(&lista_bloq);
         printk(KERN_INFO "Desbloqueado proceso escritor\n");
-      }else{
-        if(kfifo_avail(&cola) >= buffer_threshold){
-           wake_up_interruptible(&lista_bloq);
-           printk(KERN_INFO "Desbloqueado proceso escritor\n");
-        }
       }
    }//En la cola no hay mas de 4 bytes
-   else{
+   if(kfifo_len(&cola)<4 && silenciar_spkr!=1){
      printk(KERN_INFO "No hay un sonido completo\n");
-     dispo_activado = 0;
+     del_timer(&t_list);
      spkr_off();
    }
   printk(KERN_INFO "Saliendo de Reproducir\n");
+  //del_timer(&t_list);
 }
 
 
@@ -240,23 +231,16 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
  size_of_message = strlen(message);
   
  printk(KERN_INFO "Recibidos %zu caracteres desde el usuario",count);
- printk(KERN_INFO "Recibidos %s\n",buf);
+ printk(KERN_INFO "Recibidos %s\n",message);
 
- contador = count;
- //desplazamiento = 0;
+ contador = contador + count;
 
- //buf es un puntero de la zona de memoria del usuario
-  //no se puede acceder desde el kernel directamente a esta zona pues esta paginado y las direcciones no concuerdan
-  //copy_from_user -> para copiar datos desde el espacio de memoria del usuario
-  //put_user(datum,ptr) -> escribe 'datum' en el espacio de usuario
- //el tamaño del buffer interno se recibe como parametro 'buffer_size'
- //si no se especifica sera igual al tamaño de una pagina PAGE_SIZE
- // int ret;
- // unsigned int copied; 
+ printk(KERN_INFO "El valor del contador al inicio del write es %d\n",contador);
+   
   if(mutex_lock_interruptible(&m_open))
       return -1;
-  /*Primero hay que comprobar si hay espacio suficiente para escribir */
-   /*Si no hay espacio*/
+   //Comprobar primero si hay espacio
+   //Caso 1 - Si no hay espacio
    if(kfifo_initialized(&cola)){
        printk(KERN_INFO "La cola esta inicializada\n");
      if(kfifo_is_empty(&cola)){
@@ -274,9 +258,9 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
             return -ERESTARTSYS;
           }
           printk(KERN_INFO "El contenido de la cola es\n");
-          char *elementos_cola;
-          elementos_cola = kmalloc(kfifo_size(&cola),GFP_KERNEL);
-          kfifo_peek(&cola,elementos_cola);
+          //char *elementos_cola;
+          //elementos_cola = kmalloc(kfifo_size(&cola),GFP_KERNEL);
+          //kfifo_peek(&cola,elementos_cola);
           desplazamiento = desplazamiento + copied;
           contador = contador - copied;
           printk(KERN_INFO "Copiados %d. Quedan por copiar %d\n",copied,contador);
@@ -284,7 +268,9 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
           if(kfifo_len(&cola)>=4){
               printk(KERN_INFO "Hay mas de 4 en la cola\n");
               //Comprobamos si estaba activado o no el altavoz
-            if(!dispo_activado){
+            if(!altavoz_encendido){
+               printk(KERN_INFO "Llamando a reproducir con parametro %d",contador);
+               altavoz_encendido = 1;
                reproducir(contador);
             }
           }
@@ -312,10 +298,10 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
            printk(KERN_INFO "Copiados %d. Quedan por copiar %d\n",copied,contador);
            if(kfifo_len(&cola)>=4){
              printk("Hay mas de 4 en la cola\n");
-             if(!dispo_activado){
-                dispo_activado = 1;
+            // if(!silenciar_spkr){
+              //  silenciar_spkr = 1;
                 reproducir(contador);
-             }
+            // }
            }//if
          }//while
        }//else
