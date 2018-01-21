@@ -11,6 +11,7 @@
 #include <linux/kdev_t.h>
 #include <linux/timer.h>
 #include <linux/jiffies.h>
+#include <linux/slab.h>
 #include <asm/uaccess.h>
 
 MODULE_LICENSE("GPL");
@@ -73,6 +74,8 @@ unsigned int duracion;
 //unsigned int buffer_threshold = PAGE_SIZE;
 unsigned int buffer_threshold = PAGE_SIZE;
 static int flag = 0;
+static char message[256]={0};
+static short size_of_message;
 int ret;
 int ret_k_init;
 int dispo_activado = 0;
@@ -233,6 +236,11 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
  
  //Fijarse en el siguiente código 
  //https://github.com/torvalds/linux/blob/master/samples/kfifo/inttype-example.c
+ sprintf(message,"%s(%zu)",buf,count);
+ size_of_message = strlen(message);
+  
+ printk(KERN_INFO "Recibidos %zu caracteres desde el usuario",count);
+ printk(KERN_INFO "Recibidos %s\n",buf);
 
  contador = count;
  //desplazamiento = 0;
@@ -267,6 +275,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
           }
           printk(KERN_INFO "El contenido de la cola es\n");
           char *elementos_cola;
+          elementos_cola = kmalloc(kfifo_size(&cola),GFP_KERNEL);
           kfifo_peek(&cola,elementos_cola);
           desplazamiento = desplazamiento + copied;
           contador = contador - copied;
@@ -304,6 +313,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
            if(kfifo_len(&cola)>=4){
              printk("Hay mas de 4 en la cola\n");
              if(!dispo_activado){
+                dispo_activado = 1;
                 reproducir(contador);
              }
            }//if
@@ -329,6 +339,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
 static int fsync(struct file *filp, loff_t start, loff_t end, int datasync) {
 	//   int wait_event_interruptible(wait_queue_head_t cola, int condicion);
 		wait_event_interruptible(lista_bloq, kfifo_is_empty(&cola));
+ return 0;
 }
 int spkr_fsync(struct file *filp, int datasync);
 
