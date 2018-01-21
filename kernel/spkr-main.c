@@ -233,7 +233,9 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
  printk(KERN_INFO "Recibidos %zu caracteres desde el usuario",count);
  printk(KERN_INFO "Recibidos %s\n",message);
 
- contador = contador + count;
+ printk(KERN_INFO "El desplazamiento es %d\n",desplazamiento);
+
+ contador = count;
 
  printk(KERN_INFO "El valor del contador al inicio del write es %d\n",contador);
    
@@ -253,6 +255,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
             mutex_unlock(&m_open);
             return -ERESTARTSYS;
             }
+           printk(KERN_INFO "El desplazamiento antes de copiar es %d\n",desplazamiento);
            if(kfifo_from_user(&cola,buf+desplazamiento,contador,&copied)!=0){
             mutex_unlock(&m_open);
             return -ERESTARTSYS;
@@ -261,9 +264,11 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
           //char *elementos_cola;
           //elementos_cola = kmalloc(kfifo_size(&cola),GFP_KERNEL);
           //kfifo_peek(&cola,elementos_cola);
+          printk(KERN_INFO "El valor de copied es %d\n",copied);
           desplazamiento = desplazamiento + copied;
           contador = contador - copied;
           printk(KERN_INFO "Copiados %d. Quedan por copiar %d\n",copied,contador);
+          printk(KERN_INFO "El desplazamiento despues de copiar es %d\n",desplazamiento);
           //Comprobar si hay un sonido completo
           if(kfifo_len(&cola)>=4){
               printk(KERN_INFO "Hay mas de 4 en la cola\n");
@@ -288,6 +293,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
                 //wake_up_interruptible(&lista_bloq);
          }
          printk(KERN_INFO "Aqui puedo insertar\n");
+         printk(KERN_INFO "El desplazamiento antes de copiar es %d\n",desplazamiento);
          while(contador > 0){
              if(kfifo_from_user(&cola,buf+desplazamiento,contador,&copied)!=0){
                mutex_unlock(&m_open);
@@ -296,6 +302,7 @@ static ssize_t write(struct file *filp, const char __user *buf, size_t count, lo
            desplazamiento = desplazamiento + copied;
            contador = contador - copied;
            printk(KERN_INFO "Copiados %d. Quedan por copiar %d\n",copied,contador);
+           printk(KERN_INFO "El desplazamiento despues de copiar es %d\n",desplazamiento);
            if(kfifo_len(&cola)>=4){
              printk("Hay mas de 4 en la cola\n");
             // if(!silenciar_spkr){
