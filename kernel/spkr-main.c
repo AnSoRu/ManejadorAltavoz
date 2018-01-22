@@ -96,16 +96,16 @@ void reproducir(unsigned long data);
 //Funcion auxiliar para reproducir el sonido
 void reproducir(unsigned long data){
    printk(KERN_INFO "Reproduciendo\n");
-   char sound[4];   
+   unsigned char sound[4];   
    //Nos aseguramos que hay al menos un sonido
-   while(kfifo_len(&cola) >= 4){
+   if(kfifo_len(&cola) >= 4){
       printk(KERN_INFO "Hay %d\n",kfifo_len(&cola));
       kfifo_out(&cola,sound,4);
-      printk("El sonido recibido es %c %c %c %c",sound[0],sound[1],sound[2],sound[3]);     
-      printk("El sonido recibido es %c-%c-%c-%c",sound[0],sound[1],sound[2],sound[3]);
+      //printk("El sonido recibido es %c %c %c %c",sound[0],sound[1],sound[2],sound[3]);     
+      //printk("El sonido recibido es %c-%c-%c-%c",sound[0],sound[1],sound[2],sound[3]);
       
-      frecuencia = ((int)sound[1] << 8) | sound[0];
-      duracion = ((int)sound[3] << 8) | sound[2];
+      frecuencia = ((unsigned int)sound[1] << 8) | sound[0];
+      duracion = ((unsigned int)sound[3] << 8) | sound[2];
       
       printk(KERN_INFO "Frecuencia %d\n",frecuencia);
       printk(KERN_INFO "Duracion %d\n",duracion);
