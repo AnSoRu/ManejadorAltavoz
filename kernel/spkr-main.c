@@ -295,32 +295,24 @@ FASE 5: OPERACION FSYNC Y ADAPTACION VERSION 3.0 DE LINUX
 //retorna el número de versión del núcleo para el que se está compilando el módulo 
 //LINUX_VERSION_CODE
 //KERNEL_VERSION(a,b,c): genera el entero que representa la versión correspondiente a los valores pasados como parámetros.
-
-static int spkr_fsync(struct file *filp, loff_t start, loff_t end, int datasync) {
-	//int wait_event_interruptible(wait_queue_head_t cola, int condicion);
+/*
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(3,0,0)
+static int spkr_fsync(struct file *file, loff_t start, loff_t end, int datasync){
 	wait_event_interruptible(lista_bloq, kfifo_is_empty(&cola));
 	return 0;
 }
-int spkr_fsync(struct file *filp, int datasync){
+#else
+static int spkr_fsync(struct file *file, int datasync){
 	wait_event_interruptible(lista_bloq, kfifo_is_empty(&cola));
 	return 0;
 }
-
-static int adaptacion (double version){
-	if (LINUX_VERSION_CODE <= KERNEL_VERSION(3,0,0)){
-		spkr_fsync(*filp,datasync);
-	}
-	else{
-		spkr_fsync(*filp,start,end, datasync);
-	}
-}
-
+#endif
+*/
 static struct file_operations fops = {
      .owner = THIS_MODULE,
      .open = open,
      .release = release,
      .write = write,
-	 .fsync = fsync
 };
 
 
