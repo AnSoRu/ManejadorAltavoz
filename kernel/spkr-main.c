@@ -93,6 +93,17 @@ int ret;
 int ret_k_init;
 int altavoz_encendido = 0;
 int silenciar_spkr = 0;
+
+//Este sirve para la fase 6
+//0 significa que el mute esta apagado, es decir suenan los sonidos
+//1 significa que el mute esta encendido, es decir no debe establecerse la frecuencia
+unsigned int estado_mute = 0; 
+
+#define SPKR_NUM_MAGICO '9'
+#define SPKR_SET_MUTE_STATE _IOW(SPKR_NUM_MAGICO,1,int)
+#define SPKR_GET_MUTE_STATE _IOR(SPKR_NUM_MAGICO,2,int)
+#define SPKR_RESET _IO(SPKR_NUM_MAGICO,2)
+
 //void cdev_init(struct cdev *dev, struct file_operations *fops);
 //int cdev_add(struct cdev *dev, dev_t num, unsigned int count);
 //void cdev_del(struct cdev *dev);
@@ -113,10 +124,13 @@ void reproducir(unsigned long data){
       kfifo_out(&cola,sound,4);
       //printk("El sonido recibido es %c %c %c %c",sound[0],sound[1],sound[2],sound[3]);     
       //printk("El sonido recibido es %c-%c-%c-%c",sound[0],sound[1],sound[2],sound[3]);
-      
-      frecuencia = ((unsigned int)sound[1] << 8) | sound[0];
+      if(estado_mute==1){
+        frecuencia = 0;
+      }else{
+      	frecuencia = ((unsigned int)sound[1] << 8) | sound[0];
+      }
       duracion = ((unsigned int)sound[3] << 8) | sound[2];
-      
+       
       printk(KERN_INFO "Frecuencia %d\n",frecuencia);
       printk(KERN_INFO "Duracion %d\n",duracion);
 
@@ -305,25 +319,72 @@ FASE 5: OPERACION FSYNC Y ADAPTACION VERSION 3.0 DE LINUX
 //retorna el número de versión del núcleo para el que se está compilando el módulo 
 //LINUX_VERSION_CODE
 //KERNEL_VERSION(a,b,c): genera el entero que representa la versión correspondiente a los valores pasados como parámetros.
-/*
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(3,0,0)
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3,0,0)
 static int spkr_fsync(struct file *file, loff_t start, loff_t end, int datasync){
-	wait_event_interruptible(lista_bloq, kfifo_is_empty(&cola));
+	printk(KERN_INFO "FSYNC");
+        
+        if(wait_event_interruptible(lista_bloq, kfifo_is_empty(&cola)!=0)){
+             return -ERESTARTSYS;
+        }
 	return 0;
 }
 #else
 static int spkr_fsync(struct file *file, int datasync){
-	wait_event_interruptible(lista_bloq, kfifo_is_empty(&cola));
+        printk(KERN_INFO "FSYNC");
+	if(wait_event_interruptible(lista_bloq, kfifo_is_empty(&cola))!=0){
+            return -ERESTARTSYS;
+        }
 	return 0;
 }
 #endif
-*/
-static struct file_operations fops = {
+
+
+/*******************************************************
+FASE 6: OPERACIONES ioctl
+*******************************************************/
+static long ioctl(struct file *file,unsigned int cmd,unsigned long args){
+  long mute; 
+  switch(cmd){
+        case SPKR_SET_MUTE_STATE:
+             if((estado_mute == 1)){
+                estado_mute = 0;
+             }else{
+                estado_mute = 1;
+             }
+            return estado_mute;
+        break;
+        case SPKR_GET_MUTE_STATE:
+             return estado_mute;
+        break;
+        case SPKR_RESET:
+            printk(KERN_INFO "Reseteando cola\n");
+            kfifo_reset_out(&cola);
+            return 0;
+        break;
+  }
+  return 0;
+}
+
+
+
+
+/*static struct file_operations fops = {
      .owner = THIS_MODULE,
      .open = open,
      .release = release,
      .write = write,
+};*/
+
+static struct file_operations fops = {
+       .owner = THIS_MODULE,
+       .write = write,
+       .unlocked_ioctl = ioctl,
+       .open = open,
+       .release = release,
+       .fsync = spkr_fsync,
 };
+
 
 
 static int __init init(void){

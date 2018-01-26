@@ -15,6 +15,16 @@
 #include <linux/kernel.h>
 #include <asm/uaccess.h>
 
+
+/*
+Autores
+ -Sandra Gómez Yagüez
+ -Ángel Soler Ruiz
+
+ Septiembre 2017 - Enero 2018
+*/
+
+
 MODULE_LICENSE("GPL");
 
 extern void set_spkr_frequency(unsigned int frequency);
