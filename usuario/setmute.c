@@ -4,6 +4,9 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 
+#define SPKR_NUM_MAGICO '9'
+#define SPKR_SET_MUTE_STATE _IOW(SPKR_NUM_MAGICO,1,int)
+
 int main(int argc, char *argv[]) {
 	int sd;
 	

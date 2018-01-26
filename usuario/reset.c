@@ -5,6 +5,9 @@
 #include <sys/ioctl.h>
 
 
+#define SPKR_NUM_MAGICO '9'
+#define SPKR_RESET _IO(SPKR_NUM_MAGICO,3)
+
 int main(int argc, char *argv[]) {
 	int sd;
 
