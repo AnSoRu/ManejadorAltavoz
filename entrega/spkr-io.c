@@ -5,16 +5,6 @@
 #include <linux/spinlock_types.h>
 //#include <sys/uio.h>
 
-
-/*
-Autores
- -Sandra Gómez Yagüez
- -Ángel Soler Ruiz
-
- Septiembre 2017 - Enero 2018
-*/
-
-
 raw_spinlock_t bloqueo;
 unsigned long flags;
 uint32_t DivisorFreq;
