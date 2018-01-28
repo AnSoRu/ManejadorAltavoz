@@ -93,6 +93,17 @@ int ret;
 int ret_k_init;
 int altavoz_encendido = 0;
 int silenciar_spkr = 0;
+
+//Este sirve para la fase 6
+//0 significa que el mute esta apagado, es decir suenan los sonidos
+//1 significa que el mute esta encendido, es decir no debe establecerse la frecuencia
+int estado_mute = 0; 
+int estado_recibido = 0;
+#define SPKR_NUM_MAGICO '9'
+#define SPKR_SET_MUTE_STATE _IOW(SPKR_NUM_MAGICO,1,int)
+#define SPKR_GET_MUTE_STATE _IOR(SPKR_NUM_MAGICO,2,int)
+#define SPKR_RESET _IO(SPKR_NUM_MAGICO,3)
+
 //void cdev_init(struct cdev *dev, struct file_operations *fops);
 //int cdev_add(struct cdev *dev, dev_t num, unsigned int count);
 //void cdev_del(struct cdev *dev);
@@ -113,39 +124,42 @@ void reproducir(unsigned long data){
       kfifo_out(&cola,sound,4);
       //printk("El sonido recibido es %c %c %c %c",sound[0],sound[1],sound[2],sound[3]);     
       //printk("El sonido recibido es %c-%c-%c-%c",sound[0],sound[1],sound[2],sound[3]);
-      
-      frecuencia = ((unsigned int)sound[1] << 8) | sound[0];
-      duracion = ((unsigned int)sound[3] << 8) | sound[2];
-      
-      printk(KERN_INFO "Frecuencia %d\n",frecuencia);
-      printk(KERN_INFO "Duracion %d\n",duracion);
+      	frecuencia = ((unsigned int)sound[1] << 8) | sound[0];
+        duracion = ((unsigned int)sound[3] << 8) | sound[2];
+       
+        printk(KERN_INFO "Frecuencia %d\n",frecuencia);
+        printk(KERN_INFO "Duracion %d\n",duracion);
 
-      //t_list.data = contador;
-      //t_list.expires = jiffies + msecs_to_jiffies(duracion);
-      //Caso en el que no sea un silencio
-      if(frecuencia!=0){
-        set_spkr_frequency(frecuencia);
-        if(!silenciar_spkr){
-	  //printk(KERN_INFO "Speaker ON\n");
-          printk(KERN_INFO "Añadiendo timer-sonido\n");
-          spkr_on();
-          //add_timer(&t_list);
-          mod_timer(&t_list,jiffies + msecs_to_jiffies(duracion));
+        //t_list.data = contador;
+        //t_list.expires = jiffies + msecs_to_jiffies(duracion);
+        //Caso en el que no sea un silencio
+        if(frecuencia!=0){
+          set_spkr_frequency(frecuencia);
+          if(!silenciar_spkr){
+	    //printk(KERN_INFO "Speaker ON\n");
+            printk(KERN_INFO "Añadiendo timer-sonido\n");
+            if(estado_mute==0){ //Solo saco el sonido si el mute esta desactivado
+               spkr_on();
+            }else{
+               spkr_off();
+            }
+            //add_timer(&t_list);
+            mod_timer(&t_list,jiffies + msecs_to_jiffies(duracion));
+          }
+        }else{
+         //Caso en el que sea un silencio
+         //printk(KERN_INFO "Speaker OFF\n");
+         printk(KERN_INFO "La frecuencia es 0\n");
+         silenciar_spkr = 0;
+         spkr_off();
+         printk(KERN_INFO "Añadiendo timer-silencio\n");
+         //add_timer(&t_list);
+         mod_timer(&t_list,jiffies + msecs_to_jiffies(duracion));
         }
-      }else{
-       //Caso en el que sea un silencio
-       //printk(KERN_INFO "Speaker OFF\n");
-       printk(KERN_INFO "La frecuencia es 0\n");
-       silenciar_spkr = 0;
-       spkr_off();
-       printk(KERN_INFO "Añadiendo timer-silencio\n");
-       //add_timer(&t_list);
-       mod_timer(&t_list,jiffies + msecs_to_jiffies(duracion));
-      }
-      if((kfifo_avail(&cola)) >= buffer_threshold){
-        wake_up_interruptible(&lista_bloq);
-        printk(KERN_INFO "Desbloqueado proceso escritor\n");
-      }
+        if((kfifo_avail(&cola)) >= buffer_threshold){
+          wake_up_interruptible(&lista_bloq);
+          printk(KERN_INFO "Desbloqueado proceso escritor\n");
+        }
    }//En la cola no hay mas de 4 bytes
    /*if(kfifo_len(&cola)<4 && !kfifo_is_empty(&cola)){
      printk(KERN_INFO "No hay un sonido completo\n");
@@ -155,6 +169,7 @@ void reproducir(unsigned long data){
    }*/
   if(((kfifo_len(&cola)<4) && (altavoz_encendido==1))){
         altavoz_encendido = 0;
+        estado_mute = 0;
   	spkr_off();
   }
   printk(KERN_INFO "Saliendo de Reproducir\n");
@@ -305,25 +320,103 @@ FASE 5: OPERACION FSYNC Y ADAPTACION VERSION 3.0 DE LINUX
 //retorna el número de versión del núcleo para el que se está compilando el módulo 
 //LINUX_VERSION_CODE
 //KERNEL_VERSION(a,b,c): genera el entero que representa la versión correspondiente a los valores pasados como parámetros.
-/*
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(3,0,0)
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3,0,0)
 static int spkr_fsync(struct file *file, loff_t start, loff_t end, int datasync){
-	wait_event_interruptible(lista_bloq, kfifo_is_empty(&cola));
+	printk(KERN_INFO "FSYNC");
+        
+        if(wait_event_interruptible(lista_bloq, kfifo_is_empty(&cola)!=0)){
+             return -ERESTARTSYS;
+        }
 	return 0;
 }
 #else
 static int spkr_fsync(struct file *file, int datasync){
-	wait_event_interruptible(lista_bloq, kfifo_is_empty(&cola));
+        printk(KERN_INFO "FSYNC");
+	if(wait_event_interruptible(lista_bloq, kfifo_is_empty(&cola))!=0){
+            return -ERESTARTSYS;
+        }
 	return 0;
 }
 #endif
-*/
-static struct file_operations fops = {
+
+
+/*******************************************************
+FASE 6: OPERACIONES ioctl
+*******************************************************/
+static long ioctl(struct file *file,unsigned int cmd,unsigned long args){
+  long mute;
+  printk(KERN_INFO "Entrando en ioctl\n"); 
+  switch(cmd){
+        case SPKR_SET_MUTE_STATE:
+             printk(KERN_INFO "Cambiando el mute\n");
+             mute = __get_user(estado_recibido,(int __user *)args);
+             printk(KERN_INFO "El resultado de __get_user es %ld\n",mute);
+             printk(KERN_INFO "En args recibo %ld\n",args);
+             if(estado_recibido == 0){//Caso en el que quiere apagar el mute
+             printk(KERN_INFO "El usuario quiere apagar el mute\n");
+                  if(estado_mute == 1){
+                         printk(KERN_INFO "El mute estaba encendido\n");
+                         printk(KERN_INFO "Apagando el mute\n");
+                         estado_mute = 0;
+                         //spkr_on();
+                  }else{
+                      printk(KERN_INFO "El mute estaba apagado\n"); printk(KERN_INFO "No se toma ninguna accion\n");
+                  }
+             }else{//Caso en el que quiere encender el mute
+                printk(KERN_INFO "El usuario quiere encender el mute\n");
+                if(estado_mute == 1){
+                    printk(KERN_INFO "El mute estaba encendido\n");printk(KERN_INFO "No se toma ninguna accion\n");
+                }else{
+                    printk(KERN_INFO "El mute estaba apagado\n");
+                    printk(KERN_INFO "Encendiendo el mute\n");
+                    estado_mute = 1;
+                    //spkr_off();
+                }
+             }
+            //mute = __put_user(estado_mute,(int __user *)args);
+            //return estado_mute;
+            //mute = estado_mute;
+            printk(KERN_INFO "Saliendo de ioctl\n");
+            return estado_mute;
+        break;
+        case SPKR_GET_MUTE_STATE:
+             printk(KERN_INFO "El estado del mute es %d\n",estado_mute);
+             printk(KERN_INFO "Saliendo de ioctl\n");
+             return __put_user(estado_mute,(int __user *)args);
+             //return estado_mute;
+             //mute = estado_mute;
+        break;
+        case SPKR_RESET:
+            printk(KERN_INFO "Reseteando cola\n");
+            kfifo_reset_out(&cola);
+            printk(KERN_INFO "Saliendo de ioctl\n");
+            return 0;
+        break;
+  }
+  printk(KERN_INFO "Saliendo de ioctl\n");
+  return 0;
+}
+
+
+
+
+/*static struct file_operations fops = {
      .owner = THIS_MODULE,
      .open = open,
      .release = release,
      .write = write,
+};*/
+
+static struct file_operations fops = {
+       .owner = THIS_MODULE,
+       .write = write,
+       .unlocked_ioctl = ioctl,
+       .open = open,
+       .release = release,
+       .fsync = spkr_fsync,
 };
+
 
 
 static int __init init(void){
